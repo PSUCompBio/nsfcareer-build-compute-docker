@@ -46,9 +46,14 @@ FROM ubuntu:18.04
 
 RUN apt-get update && \
   apt-get install -y  --no-install-recommends \
-  openmpi-bin libopenblas-base openssh-client \
-  libgl1 libxt6 xvfb jq \
-  && rm -rf /var/lib/apt/lists/*
+  openmpi-bin libopenblas-base openssh-client openssl \
+  libgl1 libxt6 xvfb jq ca-certificates curl zip unzip\
+  && rm -rf /var/lib/apt/lists/* 
+
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+RUN unzip awscliv2.zip
+RUN ./aws/install
+
 
 # Setup home environment
 RUN useradd -rm -d /home/ubuntu -s /bin/bash -g root -G sudo -u 1000 ubuntu
