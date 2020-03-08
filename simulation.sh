@@ -14,9 +14,10 @@ function generate_simulation_for_player () {
   UIDS=`echo $simulation_data | jq -r .uid`
 
   # Storing current timestamp in milliseconds
-  # time=`date +%s%3N`
-  # file_name=$time.json
+  time=`date +%s%3N`
+  
   file_name='input_'$UIDS'.json'
+  
   # Create player data directory
   mkdir -p /tmp/$PLAYERID
   # Writing player data to tmp directory
@@ -28,30 +29,29 @@ function generate_simulation_for_player () {
   simulationSuccess=$?
 
   # Upload input file to S3
-  aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/'input_'$UIDS'.json' 
+  aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'input_'$UIDS'.json' 
   if [ $simulationSuccess -eq 0 ]; then
       echo "Simulation completed successfully"
+      
       # Upload output file to S3
-      aws s3 cp 'output_'$UIDS'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/'output_'$UIDS'.json' 
+      aws s3 cp 'output_'$UIDS'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$UIDS'.json' 
+
       # Execute MergepolyData
       xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$UIDS'.json' $PLAYERID$OBJDATE'_'$INDEX.png
       imageSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
-        aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$time.png
+        aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png
 
-        outputJson=$(cat 'output_'$UIDS'.json' | jq -c .)
-        outputJson=$(echo $outputJson | sed 's/\"//g')
-        echo $outputJson
         # Upload Image details to dynamodb
-        aws dynamodb --region $REGION put-item --table-name 'simulation_images' --item "{\"image_id\":{\"S\":\"$IMAGEID\"},\"token\":{\"S\":\"$IMAGETOKEN\"},\"secret\": {\"S\":\"$TOKENSECRET\"},\"bucket_name\": {\"S\":\"$USERSBUCKET\"},\"path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$time.png\"}, \"status\":{\"S\":\"completed\"}, \"outputJson\" : {\"S\" : \"$outputJson\"},\"impact_number\":{\"S\": \"$IMPACT\"}, \"player_name\" : {\"S\": \"$PLAYERID\"}}"
+        aws dynamodb --region $REGION put-item --table-name 'simulation_images' --item "{\"image_id\":{\"S\":\"$IMAGEID\"},\"token\":{\"S\":\"$IMAGETOKEN\"},\"secret\": {\"S\":\"$TOKENSECRET\"},\"bucket_name\": {\"S\":\"$USERSBUCKET\"},\"path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png\"}, \"status\":{\"S\":\"completed\"},\"impact_number\":{\"S\": \"$IMPACT\"}, \"player_name\" : {\"S\": \"$PLAYERID\"}}"
       else
         echo "MultipleViewPorts returned ERROR code $imageSuccess"
       fi
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     # Upload output file to S3
-    aws s3 cp 'femtech_'$UIDS'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/'femtech_'$UIDS'.log' 
+    aws s3 cp 'femtech_'$UIDS'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$UIDS'.log' 
   fi
 }
 generate_simulation_for_player $1
