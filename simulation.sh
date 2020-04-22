@@ -39,6 +39,8 @@ function generate_simulation_for_player () {
       # Execute MergepolyData
       xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$UIDS'.json' $PLAYERID$OBJDATE'_'$INDEX.png
       imageSuccess=$?
+      xvfb-run ./pvpython simulationMovie.py $UID
+      videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
         aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png
@@ -48,6 +50,14 @@ function generate_simulation_for_player () {
       else
         echo "MultipleViewPorts returned ERROR code $imageSuccess"
       fi
+
+      if [ $videoSuccess -eq 0 ]; then
+        # Upload file to S3
+        aws s3 cp 'simulation_'$UID'.avi' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.avi
+      else
+        echo "pvpython returned ERROR code $videoSuccess"
+      fi
+
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     # Upload output file to S3
