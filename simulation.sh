@@ -12,6 +12,8 @@ function generate_simulation_for_player () {
   IMPACT=`echo $player_simulation_data | jq -r .impact`
   OBJDATE=`echo $player_simulation_data | jq -r .date`
   UIDS=`echo $simulation_data | jq -r .uid`
+  MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
+  MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
 
   # Storing current timestamp in milliseconds
   time=`date +%s%3N`
@@ -39,7 +41,7 @@ function generate_simulation_for_player () {
       # Execute MergepolyData
       xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$UIDS'.json' $PLAYERID$OBJDATE'_'$INDEX.png
       imageSuccess=$?
-      xvfb-run ./pvpython simulationMovie.py $UID
+      xvfb-run ./pvpython simulationMovie.py $MESHFILEROOT'_'$UIDS
       videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
@@ -52,8 +54,10 @@ function generate_simulation_for_player () {
       fi
 
       if [ $videoSuccess -eq 0 ]; then
+        # Generate movie with ffmpeg
+        ffmpeg -y -an -r 10 -i 'simulation_'$MESHFILEROOT'_'$UIDS'.%04d.png' -vcodec libx264 -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$UIDS'.mp4'
         # Upload file to S3
-        aws s3 cp 'simulation_'$UID'.avi' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.avi
+        aws s3 cp 'simulation_'$UIDS'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.mp4
       else
         echo "pvpython returned ERROR code $videoSuccess"
       fi
