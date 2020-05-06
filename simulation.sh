@@ -1,5 +1,5 @@
 #! /bin/bash
-function generate_simulation_for_player () {	
+function generate_simulation_for_player () {
   aws s3 cp $1 sensor_data
   echo "$AWS_BATCH_JOB_ARRAY_INDEX"
   player_simulation_data=`cat sensor_data | jq -r .[$AWS_BATCH_JOB_ARRAY_INDEX]`
@@ -11,13 +11,35 @@ function generate_simulation_for_player () {
   TOKENSECRET=`echo $player_simulation_data | jq -r .token_secret`
   IMPACT=`echo $player_simulation_data | jq -r .impact`
   OBJDATE=`echo $player_simulation_data | jq -r .date`
-  UIDS=`echo $simulation_data | jq -r .uid`
+  USERUID=`echo $simulation_data | jq -r .uid`
+  MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
+  MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
 
   # Storing current timestamp in milliseconds
   time=`date +%s%3N`
-  
-  file_name='input_'$UIDS'.json'
-  
+
+  file_name='input_'$USERUID'.json'
+
+  # Check whether player specific mesh exists
+  MESH_EXISTS=`aws --region $REGION dynamodb get-item --table-name "users" --key "{\"user_cognito_id\" : {\"S\" :\"$PLAYERID\"}}" --attributes-to-get "is_selfie_inp_uploaded" --query "Item.is_selfie_inp_uploaded.BOOL"`
+  echo "MESH EXISTS IS $MESH_EXISTS"
+  null_case="null"
+  if [ $MESH_EXISTS == $null_case ]; then
+      # Fetch player specific mesh from defaults
+      aws s3 cp $DEFAULT_MESH /home/ubuntu/FemTechRun/coarse_brain.inp
+  else
+      # Download player mesh
+      mesh_name=`aws s3 ls $USERSBUCKET/$PLAYERID/profile/rbf/ | sort | tail -1 | awk '{print $4}'`
+      echo "Mesh is $mesh_name"
+      aws s3 cp s3://$USERSBUCKET/$PLAYERID/profile/rbf/$mesh_name /home/ubuntu/FemTechRun/$mesh_name
+
+      # Update mesh name in simulation data
+      simulation_data=`echo $simulation_data | jq '.simulation.mesh = "'$mesh_name'"'`
+
+      echo "Updated simulation data is $simulation_data"
+
+  fi
+
   # Create player data directory
   mkdir -p /tmp/$PLAYERID
   # Writing player data to tmp directory
@@ -29,16 +51,18 @@ function generate_simulation_for_player () {
   simulationSuccess=$?
 
   # Upload input file to S3
-  aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'input_'$UIDS'.json' 
+  aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'input_'$USERUID'.json'
   if [ $simulationSuccess -eq 0 ]; then
       echo "Simulation completed successfully"
-      
+
       # Upload output file to S3
-      aws s3 cp 'output_'$UIDS'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$UIDS'.json' 
+      aws s3 cp 'output_'$USERUID'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$USERUID'.json'
 
       # Execute MergepolyData
-      xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$UIDS'.json' $PLAYERID$OBJDATE'_'$INDEX.png
+      xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$USERUID'.json' $PLAYERID$OBJDATE'_'$INDEX.png
       imageSuccess=$?
+      xvfb-run ./pvpython simulationMovie.py $MESHFILEROOT'_'$USERUID
+      videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
         aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png
@@ -48,10 +72,27 @@ function generate_simulation_for_player () {
       else
         echo "MultipleViewPorts returned ERROR code $imageSuccess"
       fi
+
+      if [ $videoSuccess -eq 0 ]; then
+        # Generate movie with ffmpeg
+        ffmpeg -y -an -r 10 -i 'simulation_'$MESHFILEROOT'_'$USERUID'.%04d.png' -vcodec libx264 -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$USERUID'.mp4'
+
+        # Upload file to S3
+        aws s3 cp 'simulation_'$USERUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$time.mp4
+
+        # Update movie file path for the simulation image
+        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set movie_path = :path" --expression-attribute-values "{\":path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$time.mp4\"}}" --return-values ALL_NEW
+
+      else
+        echo "pvpython returned ERROR code $videoSuccess"
+      fi
+
   else
     echo "FemTech returned ERROR code $simulationSuccess"
+
     # Upload output file to S3
-    aws s3 cp 'femtech_'$UIDS'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$UIDS'.log' 
+    aws s3 cp 'femtech_'$USERUID'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$USERUID'.log'
   fi
 }
 generate_simulation_for_player $1
+
