@@ -3,7 +3,7 @@ FROM ubuntu:18.04 AS mergepolydata
 RUN apt-get update && \
   apt-get install -y  --no-install-recommends curl python3-dev libpng-dev\
   cmake git g++ ca-certificates vim make libgl1-mesa-dev libxt-dev \
-  zlib1g-dev && rm -rf /var/lib/apt/lists/*
+  zlib1g-dev xvfb sudo && rm -rf /var/lib/apt/lists/*
 
 # Install CMake, direct binary
 RUN curl -s "https://cmake.org/files/v3.17/cmake-3.17.0-Linux-x86_64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
@@ -19,7 +19,7 @@ RUN mkdir VTK/build;cd VTK/build;cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_
 
 # Setup MergePolyData
 ADD https://api.github.com/repos/PSUCompBio/MergePolyData/git/refs/heads/develop version.json
-RUN git clone  -b develop --single-branch https://github.com/PSUCompBio/MergePolyData.git
+RUN git clone -b master --single-branch https://github.com/PSUCompBio/MergePolyData.git
 RUN mkdir MergePolyData/build;cd MergePolyData/build;cmake .. -DVTK_DIR=/home/ubuntu/VTK/build;make -j 16
 
 # Setup pvpython
@@ -45,6 +45,7 @@ RUN mkdir MultiViewPortRun
 COPY --from=mergepolydata ["/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/brain3.ply", \
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/output.json", \
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/Br_color3.jpg", \
+  "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/cellcentres.txt", \
   "/home/ubuntu/MergePolyData/build/MultipleViewPorts", \
   "/home/ubuntu/MultiViewPortRun/"]
 
@@ -84,6 +85,7 @@ COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
 
 COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
   "/home/ubuntu/MultiViewPortRun/Br_color3.jpg", \
+  "/home/ubuntu/MultiViewPortRun/cellcentres.txt", \
   "/home/ubuntu/MultiViewPortRun/MultipleViewPorts", \
   "/home/ubuntu/FemTechRun/"]
 
