@@ -62,6 +62,7 @@ function generate_simulation_for_player () {
       xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$USERUID'.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
       imageSuccess=$?
       xvfb-run ./pvpython simulationMovie.py $MESHFILEROOT'_'$USERUID
+      xvfb-run python3 addGraph.py /tmp/$PLAYERID/$file_name
       videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
@@ -75,8 +76,7 @@ function generate_simulation_for_player () {
 
       if [ $videoSuccess -eq 0 ]; then
         # Generate movie with ffmpeg
-        ffmpeg -y -an -r 5 -i 'simulation_'$MESHFILEROOT'_'$USERUID'.%04d.png' -vcodec libx264 -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$USERUID'.mp4'
-
+        ffmpeg -y -an -r 5 -i 'updated_simulation_'$MESHFILEROOT'_'$USERUID'.%04d.png' -vcodec libx264 -filter:v "crop=2192:1258:112:16" -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$USERUID'.mp4'
         # Upload file to S3
         aws s3 cp 'simulation_'$USERUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$time.mp4
 

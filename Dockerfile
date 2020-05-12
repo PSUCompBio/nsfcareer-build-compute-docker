@@ -64,8 +64,8 @@ RUN apt-get update && \
   apt-get install -y  --no-install-recommends \
   openmpi-bin libopenblas-base openssh-client openssl \
   libgl1 libxt6 xvfb jq ca-certificates curl zip unzip \
-  libopengl0 libpython3.6 ffmpeg \
-  && rm -rf /var/lib/apt/lists/* 
+  libopengl0 libpython3.6 ffmpeg python3-matplotlib \
+  python3-numpy python3-tk && rm -rf /var/lib/apt/lists/* 
 
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 RUN unzip awscliv2.zip
@@ -81,6 +81,7 @@ RUN mkdir FemTechRun FemTechRun/results FemTechRun/results/vtu lib
 COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
   "/home/ubuntu/FemTechRun/materials.dat", \
   "/home/ubuntu/FemTechRun/simulationMovie.py", \
+  "/home/ubuntu/FemTechRun/addGraph.py", \
   "/home/ubuntu/FemTechRun/"]
 
 COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
