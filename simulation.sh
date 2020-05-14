@@ -12,8 +12,8 @@ function generate_simulation_for_player () {
   IMPACT=`echo $player_simulation_data | jq -r .impact`
   OBJDATE=`echo $player_simulation_data | jq -r .date`
   USERUID=`echo $simulation_data | jq -r .uid`
-  MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
-  MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
+  # MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
+  # MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
 
   # Storing current timestamp in milliseconds
   time=`date +%s%3N`
@@ -37,6 +37,7 @@ function generate_simulation_for_player () {
       simulation_data=`echo $simulation_data | jq '.simulation.mesh = "'$mesh_name'"'`
 
       echo "Updated simulation data is $simulation_data"
+      MESHFILEROOT=`echo "$mesh_name" | cut -f 1 -d '.'`
 
   fi
 
