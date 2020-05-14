@@ -60,10 +60,10 @@ function generate_simulation_for_player () {
       aws s3 cp 'output_'$USERUID'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$USERUID'.json'
 
       # Execute MergepolyData
-      xvfb-run ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$USERUID'.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
+      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$USERUID'.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
       imageSuccess=$?
-      xvfb-run ./pvpython simulationMovie.py $MESHFILEROOT'_'$USERUID
-      xvfb-run python3 addGraph.py /tmp/$PLAYERID/$file_name
+      xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$USERUID
+      xvfb-run -a python3 addGraph.py /tmp/$PLAYERID/$file_name
       videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
