@@ -59,6 +59,9 @@ function generate_simulation_for_player () {
       # Upload output file to S3
       aws s3 cp 'output_'$USERUID'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$USERUID'.json'
 
+      # Upload output_XYZ.json details to dynamodb
+      aws dynamodb --region $REGION update-item --table-name 'simulation_images' --item "{\"image_id\":{\"S\":\"$IMAGEID\"},\"token\":{\"S\":\"$IMAGETOKEN\"},\"secret\": {\"S\":\"$TOKENSECRET\"},\"bucket_name\": {\"S\":\"$USERSBUCKET\"},\"path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$USERUID'.json'\"}, \"status\":{\"S\":\"completed\"},\"impact_number\":{\"S\": \"$IMPACT\"}, \"player_name\" : {\"S\": \"$PLAYERID\"}}"
+
       # Execute MergepolyData
       xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$USERUID'.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
       imageSuccess=$?
@@ -70,7 +73,7 @@ function generate_simulation_for_player () {
         aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png
 
         # Upload Image details to dynamodb
-        aws dynamodb --region $REGION put-item --table-name 'simulation_images' --item "{\"image_id\":{\"S\":\"$IMAGEID\"},\"token\":{\"S\":\"$IMAGETOKEN\"},\"secret\": {\"S\":\"$TOKENSECRET\"},\"bucket_name\": {\"S\":\"$USERSBUCKET\"},\"path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png\"}, \"status\":{\"S\":\"completed\"},\"impact_number\":{\"S\": \"$IMPACT\"}, \"player_name\" : {\"S\": \"$PLAYERID\"}}"
+        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --item "{\"image_id\":{\"S\":\"$IMAGEID\"},\"token\":{\"S\":\"$IMAGETOKEN\"},\"secret\": {\"S\":\"$TOKENSECRET\"},\"bucket_name\": {\"S\":\"$USERSBUCKET\"},\"path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png\"}, \"status\":{\"S\":\"completed\"},\"impact_number\":{\"S\": \"$IMPACT\"}, \"player_name\" : {\"S\": \"$PLAYERID\"}}"
       else
         echo "MultipleViewPorts returned ERROR code $imageSuccess"
       fi
@@ -96,4 +99,3 @@ function generate_simulation_for_player () {
   fi
 }
 generate_simulation_for_player $1
-
