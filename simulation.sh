@@ -53,6 +53,8 @@ function generate_simulation_for_player () {
 
   # Upload input file to S3
   aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'input_'$USERUID'.json'
+  # Upload output log to S3
+  aws s3 cp 'femtech_'$USERUID'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$USERUID'.log'
   if [ $simulationSuccess -eq 0 ]; then
       echo "Simulation completed successfully"
 
@@ -96,8 +98,6 @@ function generate_simulation_for_player () {
     echo "FemTech returned ERROR code $simulationSuccess"
     aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"error\"}}" --return-values ALL_NEW
 
-    # Upload output file to S3
-    aws s3 cp 'femtech_'$USERUID'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$USERUID'.log'
   fi
 }
 generate_simulation_for_player $1
