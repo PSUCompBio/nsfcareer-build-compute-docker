@@ -55,6 +55,8 @@ function generate_simulation_for_player () {
   aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'input_'$USERUID'.json'
   # Upload output log to S3
   aws s3 cp 'femtech_'$USERUID'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$USERUID'.log'
+  aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set log_path = :log_path" --expression-attribute-values "{\":log_path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/femtech_$USERUID.log\"}}" --return-values ALL_NEW
+
   if [ $simulationSuccess -eq 0 ]; then
       echo "Simulation completed successfully"
 
