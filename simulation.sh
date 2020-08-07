@@ -11,14 +11,11 @@ function generate_simulation_for_player () {
   TOKENSECRET=`echo $player_simulation_data | jq -r .token_secret`
   IMPACT=`echo $player_simulation_data | jq -r .impact`
   OBJDATE=`echo $player_simulation_data | jq -r .date`
-  USERUID=`echo $simulation_data | jq -r .uid`
+  UUID=`echo $simulation_data | jq -r .uid`
   MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
   MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
 
-  # Storing current timestamp in milliseconds
-  time=`date +%s%3N`
-
-  file_name='input_'$USERUID'.json'
+  file_name=$UUID'_input.json'
 
   # Check whether player specific mesh exists
   MESH_EXISTS=`aws --region $REGION dynamodb get-item --table-name "users" --key "{\"user_cognito_id\" : {\"S\" :\"$PLAYERID\"}}" --attributes-to-get "is_selfie_inp_uploaded" --query "Item.is_selfie_inp_uploaded.BOOL"`
@@ -52,54 +49,51 @@ function generate_simulation_for_player () {
   simulationSuccess=$?
 
   # Upload input file to S3
-  aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'input_'$USERUID'.json'
-  # Upload output log to S3
-  aws s3 cp 'femtech_'$USERUID'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$USERUID'.log'
-  aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set log_path = :log_path" --expression-attribute-values "{\":log_path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/femtech_$USERUID.log\"}}" --return-values ALL_NEW
+  aws s3 cp /tmp/$PLAYERID/$file_name s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$file_name
+  # Upload femtech log to S3 if it exists
+  LOGFILE='femtech_'$UUID'.log'
+  if test -f "$LOGFILE"; then
+    aws s3 cp 'femtech_'$UUID'.log' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/logs/'femtech_'$UUID'.log'
+  fi
 
   if [ $simulationSuccess -eq 0 ]; then
       echo "Simulation completed successfully"
 
-      # Upload output file to S3
-      aws s3 cp 'output_'$USERUID'.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$USERUID'.json'
+			python3 updateOutputJson.py $UUID'_output.json'
 
-      # Upload output_XYZ.json details to dynamodb
-      aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #ouput_file_path = :ouput_file_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#ouput_file_path\":\"ouput_file_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":ouput_file_path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/'output_'$USERUID'.json'\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$PLAYERID\"}}" --return-values ALL_NEW
+      # Upload output file to S3
+      aws s3 cp $UUID'_output.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$UUID'_output.json'
+
+      # Upload results details to dynamodb
+      aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$PLAYERID\"}}" --return-values ALL_NEW
 
       # Execute MergepolyData
-      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg 'output_'$USERUID'.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
+      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $UUID'_output.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
       imageSuccess=$?
-      xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$USERUID
+      xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$UUID
       xvfb-run -a python3 addGraph.py /tmp/$PLAYERID/$file_name
       videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
-        aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png
-
-        # Upload Image details to dynamodb
-        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #path = :path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#path\":\"path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/$time.png\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$PLAYERID\"}}" --return-values ALL_NEW
+        aws s3 cp $PLAYERID$OBJDATE'_'$INDEX.png s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$IMAGEID.png
       else
         echo "MultipleViewPorts returned ERROR code $imageSuccess"
-        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"error\"}}" --return-values ALL_NEW
+        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"image_error\"}}" --return-values ALL_NEW
       fi
 
       if [ $videoSuccess -eq 0 ]; then
         # Generate movie with ffmpeg
-        ffmpeg -y -an -r 5 -i 'updated_simulation_'$MESHFILEROOT'_'$USERUID'.%04d.png' -vcodec libx264 -filter:v "crop=2192:1258:112:16" -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$USERUID'.mp4'
+        ffmpeg -y -an -r 5 -i 'updated_simulation_'$MESHFILEROOT'_'$UUID'.%04d.png' -vcodec libx264 -filter:v "crop=2192:1258:112:16" -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$UUID'.mp4'
         # Upload file to S3
-        aws s3 cp 'simulation_'$USERUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$time.mp4
-
-        # Update movie file path for the simulation image
-        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set movie_path = :path" --expression-attribute-values "{\":path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$time.mp4\"}}" --return-values ALL_NEW
+        aws s3 cp 'simulation_'$UUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$IMAGEID.mp4
 
       else
         echo "pvpython returned ERROR code $videoSuccess"
-        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"error\"}}" --return-values ALL_NEW
+        aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"video_error\"}}" --return-values ALL_NEW
       fi
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"error\"}}" --return-values ALL_NEW
-
   fi
 }
 generate_simulation_for_player $1

@@ -46,6 +46,7 @@ COPY --from=mergepolydata ["/home/ubuntu/MergePolyData/build/examples/multipleVi
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/output.json", \
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/Br_color3.jpg", \
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/cellcentres.txt", \
+  "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/updateOutputJson.py", \
   "/home/ubuntu/MergePolyData/build/MultipleViewPorts", \
   "/home/ubuntu/MultiViewPortRun/"]
 
@@ -65,7 +66,7 @@ RUN apt-get update && \
   openmpi-bin libopenblas-base openssh-client openssl \
   libgl1 libxt6 xvfb jq ca-certificates curl zip unzip \
   libopengl0 libpython3.6 ffmpeg python3-matplotlib \
-  python3-numpy python3-tk && rm -rf /var/lib/apt/lists/* 
+  python3-numpy python3-tk less && rm -rf /var/lib/apt/lists/* 
 
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 RUN unzip awscliv2.zip
@@ -87,6 +88,7 @@ COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
 COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
   "/home/ubuntu/MultiViewPortRun/Br_color3.jpg", \
   "/home/ubuntu/MultiViewPortRun/cellcentres.txt", \
+  "/home/ubuntu/MultiViewPortRun/updateOutputJson.py", \
   "/home/ubuntu/MultiViewPortRun/MultipleViewPorts", \
   "/home/ubuntu/FemTechRun/"]
 
