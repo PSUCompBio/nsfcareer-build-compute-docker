@@ -72,6 +72,7 @@ function generate_simulation_for_player () {
       imageSuccess=$?
       xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$UUID
       xvfb-run -a python3 addGraph.py /tmp/$PLAYERID/$file_name
+      xvfb-run -a ./pvpython mps95Movie.py  /tmp/$PLAYERID/$file_name
       videoSuccess=$?
       if [ $imageSuccess -eq 0 ]; then
         # Upload file to S3
@@ -85,8 +86,11 @@ function generate_simulation_for_player () {
         # Generate movie with ffmpeg
         ffmpeg -y -an -r 5 -i 'updated_simulation_'$MESHFILEROOT'_'$UUID'.%04d.png' -vcodec libx264 -filter:v "crop=2192:1258:112:16" -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$UUID'.mp4'
         # Upload file to S3
-        aws s3 cp 'simulation_'$UUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$IMAGEID.mp4
-
+        aws s3 cp 'simulation_'$UUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$IMAGEID'.mp4'
+        # Generate movie with ffmpeg
+        ffmpeg -y -an -r 5 -i 'injury_'$UUID'.%04d.png' -vcodec libx264 -profile:v baseline -level 3 -pix_fmt yuv420p 'mps95_'$UUID'.mp4'
+        # Upload file to S3
+        aws s3 cp 'mps95_'$UUID'.mp4' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/movie/$IMAGEID'_mps.mp4'
       else
         echo "pvpython returned ERROR code $videoSuccess"
         aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"video_error\"}}" --return-values ALL_NEW

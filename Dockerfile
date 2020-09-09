@@ -83,6 +83,7 @@ COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
   "/home/ubuntu/FemTechRun/materials.dat", \
   "/home/ubuntu/FemTechRun/simulationMovie.py", \
   "/home/ubuntu/FemTechRun/addGraph.py", \
+  "/home/ubuntu/FemTechRun/mps95Movie.py", \
   "/home/ubuntu/FemTechRun/"]
 
 COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
