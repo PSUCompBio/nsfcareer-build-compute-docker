@@ -19,7 +19,7 @@ RUN mkdir VTK/build;cd VTK/build;cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_
 
 # Setup MergePolyData
 ADD https://api.github.com/repos/PSUCompBio/MergePolyData/git/refs/heads/develop version.json
-RUN git clone -b master --single-branch https://github.com/PSUCompBio/MergePolyData.git
+RUN git clone -b develop --single-branch https://github.com/PSUCompBio/MergePolyData.git
 RUN mkdir MergePolyData/build;cd MergePolyData/build;cmake .. -DVTK_DIR=/home/ubuntu/VTK/build;make -j 16
 
 # Setup pvpython
