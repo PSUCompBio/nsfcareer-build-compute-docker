@@ -14,6 +14,7 @@ function generate_simulation_for_player () {
   UUID=`echo $simulation_data | jq -r .uid`
   MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
   MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
+  MESHTYPE=`echo "$MESHFILEROOT" | cut -f 1 -d '_'`
 
   file_name=$UUID'_input.json'
 
@@ -22,11 +23,12 @@ function generate_simulation_for_player () {
   echo "MESH EXISTS IS $MESH_EXISTS"
   null_case="null"
   if [ $MESH_EXISTS == $null_case ]; then
+      MESHNAME=$MESHTYPE'_brain.inp'
       # Fetch player specific mesh from defaults
-      aws s3 cp $DEFAULT_MESH /home/ubuntu/FemTechRun/coarse_brain.inp
+      aws s3 cp $DEFAULT_MESH_PATH/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
   else
       # Download player mesh
-      mesh_name=`aws s3 ls $USERSBUCKET/$PLAYERID/profile/rbf/ | sort | tail -1 | awk '{print $4}'`
+      mesh_name=`aws s3 ls $USERSBUCKET/$PLAYERID/profile/rbf/ | grep $MESHTYPE | sort | tail -1 | awk '{print $4}'`
       echo "Mesh is $mesh_name"
       aws s3 cp s3://$USERSBUCKET/$PLAYERID/profile/rbf/$mesh_name /home/ubuntu/FemTechRun/$mesh_name
 
@@ -59,7 +61,7 @@ function generate_simulation_for_player () {
   if [ $simulationSuccess -eq 0 ]; then
       echo "Simulation completed successfully"
 
-			python3 updateOutputJson.py $UUID'_output.json'
+      python3 updateOutputJson.py /tmp/$PLAYERID/$file_name
 
       # Upload output file to S3
       aws s3 cp $UUID'_output.json' s3://$USERSBUCKET/$PLAYERID/simulation/$OBJDATE/$IMAGEID/$UUID'_output.json'
@@ -68,7 +70,7 @@ function generate_simulation_for_player () {
       aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$PLAYERID\"}}" --return-values ALL_NEW
 
       # Execute MergepolyData
-      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $UUID'_output.json' $PLAYERID$OBJDATE'_'$INDEX.png cellcentres.txt
+      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $UUID'_output.json' $PLAYERID$OBJDATE'_'$INDEX.png $MESHTYPE'_cellcentres.txt'
       imageSuccess=$?
       xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$UUID
       xvfb-run -a python3 addGraph.py /tmp/$PLAYERID/$file_name
