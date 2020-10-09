@@ -83,8 +83,8 @@ COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
   "/home/ubuntu/FemTechRun/addGraph.py", \
   "/home/ubuntu/FemTechRun/mps95Movie.py", \
   "/home/ubuntu/FemTechRun/updateOutputJson.py", \
-  "/home/ubuntu/FemTechRun/fine_cellcentres.py", \
-  "/home/ubuntu/FemTechRun/coarse_cellcentres.py", \
+  "/home/ubuntu/FemTechRun/fine_cellcentres.txt", \
+  "/home/ubuntu/FemTechRun/coarse_cellcentres.txt", \
   "/home/ubuntu/FemTechRun/"]
 
 COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
