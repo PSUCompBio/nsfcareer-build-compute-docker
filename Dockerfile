@@ -43,12 +43,8 @@ WORKDIR /home/ubuntu
 RUN mkdir MultiViewPortRun
 
 COPY --from=mergepolydata ["/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/brain3.ply", \
-  "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/input.json", \
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/test_output.json", \
   "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/Br_color3.jpg", \
-  "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/fine_cellcentres.txt", \
-  "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/coarse_cellcentres.txt", \
-  "/home/ubuntu/MergePolyData/build/examples/multipleViewPorts/updateOutputJson.py", \
   "/home/ubuntu/MergePolyData/build/MultipleViewPorts", \
   "/home/ubuntu/MultiViewPortRun/"]
 
@@ -86,13 +82,13 @@ COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
   "/home/ubuntu/FemTechRun/simulationMovie.py", \
   "/home/ubuntu/FemTechRun/addGraph.py", \
   "/home/ubuntu/FemTechRun/mps95Movie.py", \
+  "/home/ubuntu/FemTechRun/updateOutputJson.py", \
+  "/home/ubuntu/FemTechRun/fine_cellcentres.py", \
+  "/home/ubuntu/FemTechRun/coarse_cellcentres.py", \
   "/home/ubuntu/FemTechRun/"]
 
 COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
   "/home/ubuntu/MultiViewPortRun/Br_color3.jpg", \
-  "/home/ubuntu/MultiViewPortRun/fine_cellcentres.txt", \
-  "/home/ubuntu/MultiViewPortRun/coarse_cellcentres.txt", \
-  "/home/ubuntu/MultiViewPortRun/updateOutputJson.py", \
   "/home/ubuntu/MultiViewPortRun/MultipleViewPorts", \
   "/home/ubuntu/FemTechRun/"]
 

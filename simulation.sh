@@ -70,7 +70,7 @@ function generate_simulation_for_player () {
       aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$PLAYERID/simulation/$OBJDATE/$IMAGEID/\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$PLAYERID\"}}" --return-values ALL_NEW
 
       # Execute MergepolyData
-      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $UUID'_output.json' $PLAYERID$OBJDATE'_'$INDEX.png $MESHTYPE'_cellcentres.txt'
+      xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $UUID'_output.json' $PLAYERID$OBJDATE'_'$INDEX.png
       imageSuccess=$?
       xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$UUID
       xvfb-run -a python3 addGraph.py /tmp/$PLAYERID/$file_name
