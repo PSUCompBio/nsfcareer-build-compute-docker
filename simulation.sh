@@ -22,13 +22,8 @@ function generate_simulation_for_player () {
   # Check whether player specific mesh exists
   MESH_EXISTS=`aws --region $REGION dynamodb get-item --table-name "users" --key "{\"user_cognito_id\" : {\"S\" :\"$USERCOGNITOID\"}}" --attributes-to-get "is_selfie_inp_uploaded" --query "Item.is_selfie_inp_uploaded.BOOL"`
   echo "MESH EXISTS IS $MESH_EXISTS"
-  null_case="null"
-  if [ $MESH_EXISTS == $null_case ]; then
-      MESHNAME=$MESHTYPE'_brain.inp'
-      echo "Fetching Mesh From : $DEFAULT_MESH_PATH/$MESHNAME"
-      # Fetch player specific mesh from defaults
-      aws s3 cp $DEFAULT_MESH_PATH/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
-  else
+  nonnull_case="true"
+  if [ $MESH_EXISTS == $nonnull_case ]; then
       # Download player mesh
       mesh_name=`aws s3 ls $USERSBUCKET/$ACCOUNTID/profile/rbf/ | grep $MESHTYPE | sort | tail -1 | awk '{print $4}'`
       echo "Mesh is $mesh_name"
@@ -40,6 +35,11 @@ function generate_simulation_for_player () {
 
       # echo "Updated simulation data is $simulation_data"
       MESHFILEROOT=`echo "$mesh_name" | cut -f 1 -d '.'`
+  else
+      MESHNAME=$MESHTYPE'_brain.inp'
+      echo "Fetching Mesh From : $DEFAULT_MESH_PATH/$MESHNAME"
+      # Fetch player specific mesh from defaults
+      aws s3 cp $DEFAULT_MESH_PATH/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
   fi
 
   # Create player data directory
