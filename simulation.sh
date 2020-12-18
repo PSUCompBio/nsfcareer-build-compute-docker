@@ -1,7 +1,7 @@
 #! /bin/bash
 function generate_simulation_for_player () {
   aws s3 cp $1 sensor_data
-  echo "$AWS_BATCH_JOB_ARRAY_INDEX"
+  echo "Batch Index : $AWS_BATCH_JOB_ARRAY_INDEX"
   player_simulation_data=`cat sensor_data | jq -r .[$AWS_BATCH_JOB_ARRAY_INDEX]`
   simulation_data=`echo $player_simulation_data | jq -r .impact_data`
   ACCOUNTID=`echo $player_simulation_data | jq -r .account_id`
@@ -25,20 +25,21 @@ function generate_simulation_for_player () {
   null_case="null"
   if [ $MESH_EXISTS == $null_case ]; then
       MESHNAME=$MESHTYPE'_brain.inp'
+      echo "Fetching Mesh From : $DEFAULT_MESH_PATH/$MESHNAME"
       # Fetch player specific mesh from defaults
       aws s3 cp $DEFAULT_MESH_PATH/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
   else
       # Download player mesh
       mesh_name=`aws s3 ls $USERSBUCKET/$ACCOUNTID/profile/rbf/ | grep $MESHTYPE | sort | tail -1 | awk '{print $4}'`
       echo "Mesh is $mesh_name"
+      echo "Fetching Mesh From : s3://$USERSBUCKET/$ACCOUNTID/profile/rbf/$mesh_name"
       aws s3 cp s3://$USERSBUCKET/$ACCOUNTID/profile/rbf/$mesh_name /home/ubuntu/FemTechRun/$mesh_name
 
       # Update mesh name in simulation data
       simulation_data=`echo $simulation_data | jq '.simulation.mesh = "'$mesh_name'"'`
 
-      echo "Updated simulation data is $simulation_data"
+      # echo "Updated simulation data is $simulation_data"
       MESHFILEROOT=`echo "$mesh_name" | cut -f 1 -d '.'`
-
   fi
 
   # Create player data directory
@@ -83,6 +84,7 @@ function generate_simulation_for_player () {
       else
         echo "MultipleViewPorts returned ERROR code $imageSuccess"
         aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"image_error\"}}" --return-values ALL_NEW
+        return 1
       fi
 
       if [ $videoSuccess -eq 0 ]; then
@@ -97,10 +99,12 @@ function generate_simulation_for_player () {
       else
         echo "pvpython returned ERROR code $videoSuccess"
         aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"video_error\"}}" --return-values ALL_NEW
+        return 1
       fi
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"error\"}}" --return-values ALL_NEW
+    return 1
   fi
 }
 generate_simulation_for_player $1
