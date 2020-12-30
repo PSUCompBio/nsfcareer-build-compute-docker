@@ -76,8 +76,11 @@ function generate_simulation_for_player () {
 
       python3 updateOutputJson.py /tmp/$ACCOUNTID/$file_name
 
+      # Add imageID to output.json
+      cat $UUID'_output.json'|jq '.image_id = "'$IMAGEID'"' > /tmp/$ACCOUNTID/$UUID'_output.json'
+
       # Upload output file to S3
-      aws s3 cp $UUID'_output.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$OBJDATE/$IMAGEID/$UUID'_output.json'
+      aws s3 cp /tmp/$ACCOUNTID/$UUID'_output.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$OBJDATE/$IMAGEID/$UUID'_output.json'
 
       # Upload results details to dynamodb
       aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$ACCOUNTID/simulation/$OBJDATE/$IMAGEID/\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$ACCOUNTID\"}}" --return-values ALL_NEW
