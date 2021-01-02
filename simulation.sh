@@ -85,6 +85,11 @@ function generate_simulation_for_player () {
       # Upload results details to dynamodb
       aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$IMAGEID\"}}" --update-expression "set #token = :token, #secret = :secret, #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#token\":\"token\",\"#secret\":\"secret\",\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":token\":{\"S\":\"$IMAGETOKEN\"},\":secret\": {\"S\":\"$TOKENSECRET\"},\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$ACCOUNTID/simulation/$OBJDATE/$IMAGEID/\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$ACCOUNTID\"}}" --return-values ALL_NEW
 
+      # Upload MPS file to S3
+      if test -f MPSfile.dat; then
+        aws s3 cp MPSfile.dat s3://$USERSBUCKET/$ACCOUNTID/simulation/$OBJDATE/$IMAGEID/MPSfile.dat
+      fi
+
       # Execute MergepolyData if injury metrics are computed
       if [ "$COMPUTEINJURYFLAG" = true ]; then
         xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $UUID'_output.json' $ACCOUNTID$OBJDATE'_'$INDEX.png
