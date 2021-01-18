@@ -7,8 +7,7 @@ function generate_simulation_for_player () {
   ACCOUNTID=`echo $player_simulation_data | jq -r .account_id`
   USERCOGNITOID=`echo $player_simulation_data | jq -r .user_cognito_id`
   INDEX=`echo $player_simulation_data | jq -r .index`
-  EVENTID=`echo $player_simulation_data | jq -r .event_id`
-  IMPACT=`echo $player_simulation_data | jq -r .impact`
+  EVENTID=`echo $simulation_data | jq -r .event_id`
   MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
   MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
   MESHTYPE=`echo "$MESHFILEROOT" | cut -f 1 -d '_'`
@@ -79,7 +78,7 @@ function generate_simulation_for_player () {
       aws s3 cp /tmp/$ACCOUNTID/$EVENTID'_output.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID'_output.json'
 
       # Upload results details to dynamodb
-      aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #impact_number = :impact_number, #player_name = :player_name" --expression-attribute-names "{\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#impact_number\":\"impact_number\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$ACCOUNTID/simulation/$EVENTID/\"}, \":status\":{\"S\":\"completed\"},\":impact_number\":{\"S\": \"$IMPACT\"}, \":player_name\" : {\"S\": \"$ACCOUNTID\"}}" --return-values ALL_NEW
+      aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #player_name = :player_name" --expression-attribute-names "{\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$ACCOUNTID/simulation/$EVENTID/\"}, \":status\":{\"S\":\"completed\"}, \":player_name\" : {\"S\": \"$ACCOUNTID\"}}" --return-values ALL_NEW
 
       # Upload MPS file to S3
       if test -f MPSfile.dat; then
