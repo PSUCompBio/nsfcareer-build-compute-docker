@@ -1,4 +1,15 @@
 #! /bin/bash
+
+MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@nsfcareer.x2f1k.mongodb.net/nsfcareer-new-app?retryWrites=true&w=majority"
+
+mongo_eval () {
+  QRY=`mongo "${MONGO_CONNECTION_STRING}" --eval "${1}" --quiet`
+	UPD=`echo $QRY | jq -r .matchedCount`
+	if [ "$UPD" != 1 ]; then
+		echo "ERROR in mongoDB update"
+	fi
+}
+
 function generate_simulation_for_player () {
   aws s3 cp $1 sensor_data
   echo "Batch Index : $AWS_BATCH_JOB_ARRAY_INDEX"
@@ -77,8 +88,9 @@ function generate_simulation_for_player () {
       # Upload output file to S3
       aws s3 cp /tmp/$ACCOUNTID/$EVENTID'_output.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID'_output.json'
 
-      # Upload results details to dynamodb
-      aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #bucket_name = :bucket_name, #root_path = :root_path, #status = :status, #player_name = :player_name" --expression-attribute-names "{\"#bucket_name\":\"bucket_name\",\"#root_path\":\"root_path\",\"#status\":\"status\",\"#player_name\":\"player_name\"}" --expression-attribute-values "{\":bucket_name\": {\"S\":\"$USERSBUCKET\"},\":root_path\":{\"S\":\"$ACCOUNTID/simulation/$EVENTID/\"}, \":status\":{\"S\":\"completed\"}, \":player_name\" : {\"S\": \"$ACCOUNTID\"}}" --return-values ALL_NEW
+      # Upload results details to db
+      DATE_ISO=`date -Iseconds`
+      mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"completed\", computed_time:${DATE_ISO} } });"
 
       # Upload MPS file to S3
       if test -f MPSfile.dat; then
@@ -94,7 +106,8 @@ function generate_simulation_for_player () {
           aws s3 cp $ACCOUNTID'_'$INDEX.png s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID.png
         else
           echo "MultipleViewPorts returned ERROR code $imageSuccess"
-          aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"image_error\"}}" --return-values ALL_NEW
+          DATE_ISO=`date -Iseconds`
+          mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"image_error\", computed_time:${DATE_ISO} } });"
           return 1
         fi
       fi
@@ -112,7 +125,8 @@ function generate_simulation_for_player () {
           aws s3 cp 'simulation_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess_1"
-          aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"video_error\"}}" --return-values ALL_NEW
+          DATE_ISO=`date -Iseconds`
+          mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"video_error\", computed_time:${DATE_ISO} } });"
           return 1
         fi
       fi
@@ -128,13 +142,15 @@ function generate_simulation_for_player () {
           aws s3 cp 'mps95_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'_mps.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess"
-          aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"video_error\"}}" --return-values ALL_NEW
+          DATE_ISO=`date -Iseconds`
+          mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"video_error\", computed_time:${DATE_ISO} } });"
           return 1
         fi
       fi
   else
     echo "FemTech returned ERROR code $simulationSuccess"
-    aws dynamodb --region $REGION update-item --table-name 'simulation_images' --key "{\"image_id\":{\"S\":\"$EVENTID\"}}" --update-expression "set #status = :status" --expression-attribute-names "{\"#status\":\"status\"}" --expression-attribute-values "{\":status\":{\"S\":\"error\"}}" --return-values ALL_NEW
+    DATE_ISO=`date -Iseconds`
+    mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"femtech_error\", computed_time:${DATE_ISO} } });"
     return 1
   fi
 }

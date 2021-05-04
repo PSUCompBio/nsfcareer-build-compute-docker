@@ -61,10 +61,17 @@ FROM ubuntu:18.04
 
 RUN apt-get update && \
   apt-get install -y  --no-install-recommends \
+  wget gnupg ca-certificates
+
+RUN wget --no-check-certificate -qO - https://www.mongodb.org/static/pgp/server-4.4.asc | apt-key add -
+RUN echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu bionic/mongodb-org/4.4 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-4.4.list
+
+RUN apt-get update && \
+  apt-get install -y  --no-install-recommends \
   openmpi-bin libopenblas-base openssh-client openssl \
-  libgl1 libxt6 xvfb jq ca-certificates curl zip unzip \
+  libgl1 libxt6 xvfb jq curl zip unzip \
   libopengl0 libpython3.6 ffmpeg python3-matplotlib \
-  python3-numpy python3-tk less && rm -rf /var/lib/apt/lists/* 
+  python3-numpy python3-tk mongodb-org-shell less && rm -rf /var/lib/apt/lists/* 
 
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
 RUN unzip awscliv2.zip
