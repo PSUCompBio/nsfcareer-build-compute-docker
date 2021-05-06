@@ -88,10 +88,6 @@ function generate_simulation_for_player () {
       # Upload output file to S3
       aws s3 cp /tmp/$ACCOUNTID/$EVENTID'_output.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID'_output.json'
 
-      # Upload results details to db
-      DATE_ISO=`date -Iseconds`
-      mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"completed\", computed_time:${DATE_ISO} } });"
-
       # Upload MPS file to S3
       if test -f MPSfile.dat; then
         aws s3 cp MPSfile.dat s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/MPSfile.dat
@@ -108,6 +104,10 @@ function generate_simulation_for_player () {
           echo "MultipleViewPorts returned ERROR code $imageSuccess"
           DATE_ISO=`date -Iseconds`
           mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"image_error\", computed_time:${DATE_ISO} } });"
+          curl --header "Content-Type: application/json" \
+            --request POST \
+            --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
+            "${API_URL}"
           return 1
         fi
       fi
@@ -127,6 +127,10 @@ function generate_simulation_for_player () {
           echo "pvpython returned ERROR code $videoSuccess_1"
           DATE_ISO=`date -Iseconds`
           mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"video_error\", computed_time:${DATE_ISO} } });"
+          curl --header "Content-Type: application/json" \
+            --request POST \
+            --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
+            "${API_URL}"
           return 1
         fi
       fi
@@ -144,13 +148,29 @@ function generate_simulation_for_player () {
           echo "pvpython returned ERROR code $videoSuccess"
           DATE_ISO=`date -Iseconds`
           mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"video_error\", computed_time:${DATE_ISO} } });"
+          curl --header "Content-Type: application/json" \
+            --request POST \
+            --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
+            "${API_URL}"
           return 1
         fi
       fi
+      # Upload results details to db
+      # TODO: Combine DB and API calls
+      DATE_ISO=`date -Iseconds`
+      mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"completed\", computed_time:${DATE_ISO} } });"
+      curl --header "Content-Type: application/json" \
+        --request POST \
+        --data "{\"status\": 1, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
+        "${API_URL}"
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     DATE_ISO=`date -Iseconds`
     mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"femtech_error\", computed_time:${DATE_ISO} } });"
+    curl --header "Content-Type: application/json" \
+      --request POST \
+      --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
+      "${API_URL}"
     return 1
   fi
 }
