@@ -3,12 +3,47 @@
 MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@nsfcareer.x2f1k.mongodb.net/nsfcareer-new-app?retryWrites=true&w=majority"
 
 mongo_eval () {
-  echo $1
   QRY=`mongo "${MONGO_CONNECTION_STRING}" --eval "${1}" --quiet`
   echo $QRY
   UPD=`echo $QRY | jq -r .matchedCount`
-  if [ "$UPD" != 1 ]; then
+  # Pattern match required, as mongo returns multiple json objects when
+  # connection is slow. 
+  if [[ "$UPD" != *1* ]]; then
     echo "ERROR in mongoDB update"
+  fi
+}
+
+updateAPIDB () {
+  echo $1
+  statusValue=0
+  if [ "$1" == "completed" ]; then
+    statusValue=1
+  fi
+  DATE_ISO=`date -Iseconds`
+  CURLOUT=`curl --header "Content-Type: application/json" \
+    --request POST \
+    --data "{\"status\": ${statusValue}, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
+    "${API_URL}"`
+  echo $CURLOUT
+  CURLSTATUS=`echo $CURLOUT | jq -r .status`
+  if [ "$CURLSTATUS" != 1 ]; then
+    echo "ERROR in curl update of count API"
+  fi
+  mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\" } });"
+}
+
+updateMPSonMongo () {
+  MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.updateOne({event_id: \"${EVENTID}\"}, {\\$set: { mps_time:\"${1}\", mps_value:\"${2}\" } });" --quiet`
+  echo $MONGOOUT
+  UPD=`echo $MONGOOUT | jq -r .matchedCount`
+  # Pattern match required, as mongo returns multiple json objects when
+  # connection is slow. 
+  if [[ "$UPD" != *1* ]]; then
+    echo "Event ID absent in mongoDB mps_versus_time collection"
+    MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.insert({event_id: \"${EVENTID}\", mps_time:\"${1}\", mps_value:\"${2}\" });" --quiet`
+    if [[ "$MONGOOUT" != *'"nInserted" : 1'* ]]; then
+      echo "ERROR in mongoDB insert MPS"
+    fi
   fi
 }
 
@@ -104,12 +139,7 @@ function generate_simulation_for_player () {
           aws s3 cp $ACCOUNTID'_'$INDEX.png s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID.png
         else
           echo "MultipleViewPorts returned ERROR code $imageSuccess"
-          DATE_ISO=`date -Iseconds`
-          mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"image_error\", computed_time:\"${DATE_ISO}\" } });"
-          curl --header "Content-Type: application/json" \
-            --request POST \
-            --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
-            "${API_URL}"
+          updateAPIDB "image_error"
           return 1
         fi
       fi
@@ -127,12 +157,7 @@ function generate_simulation_for_player () {
           aws s3 cp 'simulation_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess_1"
-          DATE_ISO=`date -Iseconds`
-          mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"video_error\", computed_time:\"${DATE_ISO}\" } });"
-          curl --header "Content-Type: application/json" \
-            --request POST \
-            --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
-            "${API_URL}"
+          updateAPIDB "video_error"
           return 1
         fi
       fi
@@ -148,31 +173,20 @@ function generate_simulation_for_player () {
           aws s3 cp 'mps95_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'_mps.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess"
-          DATE_ISO=`date -Iseconds`
-          mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"video_error\", computed_time:\"${DATE_ISO}\" } });"
-          curl --header "Content-Type: application/json" \
-            --request POST \
-            --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
-            "${API_URL}"
+          updateAPIDB "video_error"
           return 1
         fi
       fi
       # Upload results details to db
-      # TODO: Combine DB and API calls
-      DATE_ISO=`date -Iseconds`
-      mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"completed\", computed_time:\"${DATE_ISO}\" } });"
-      curl --header "Content-Type: application/json" \
-        --request POST \
-        --data "{\"status\": 1, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
-        "${API_URL}"
+      updateAPIDB "completed"
+      # uploadSuccess=$?
+      # return $?
+      mpsTime=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.time`
+      mpsValue=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.value`
+      updateMPSonMongo "${mpsTime}" "${mpsValue}"
   else
     echo "FemTech returned ERROR code $simulationSuccess"
-    DATE_ISO=`date -Iseconds`
-    mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"femtech_error\", computed_time:\"${DATE_ISO}\" } });"
-    curl --header "Content-Type: application/json" \
-      --request POST \
-      --data "{\"status\": 0, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
-      "${API_URL}"
+    updateAPIDB "femtech_error"
     return 1
   fi
 }
