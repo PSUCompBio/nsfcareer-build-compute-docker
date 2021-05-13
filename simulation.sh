@@ -23,7 +23,7 @@ updateAPIDB () {
   CURLOUT=`curl --header "Content-Type: application/json" \
     --request POST \
     --data "{\"status\": ${statusValue}, \"date\": \"${DATE_ISO}\", \"key\":\"${API_KEY}\"}" \
-    "${API_URL}"`
+    ${API_URL}`
   echo $CURLOUT
   CURLSTATUS=`echo $CURLOUT | jq -r .status`
   if [ "$CURLSTATUS" != 1 ]; then
