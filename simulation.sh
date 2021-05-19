@@ -29,7 +29,7 @@ updateAPIDB () {
   if [ "$CURLSTATUS" != 1 ]; then
     echo "ERROR in curl update of count API"
   fi
-  mongo_eval "db.sensor_details.updateOne({job_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\" } });"
+  mongo_eval "db.sensor_details.updateOne({event_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\" } });"
 }
 
 updateMPSonMongo () {
@@ -184,6 +184,10 @@ function generate_simulation_for_player () {
       mpsTime=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.time`
       mpsValue=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.value`
       updateMPSonMongo "${mpsTime}" "${mpsValue}"
+      # Trigger lambda for image generation
+      curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&ftype=getSummary'
+      curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetSingleEvent'
+      curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetLabeledImage'
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     updateAPIDB "femtech_error"
