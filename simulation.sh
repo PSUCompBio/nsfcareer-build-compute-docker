@@ -1,5 +1,7 @@
 #! /bin/bash
 
+set -xv # Enable debugging till things set sorted out
+
 MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@nsfcareer.x2f1k.mongodb.net/nsfcareer-new-app?retryWrites=true&w=majority"
 
 mongo_eval () {
@@ -29,7 +31,7 @@ updateAPIDB () {
   if [ "$CURLSTATUS" != 1 ]; then
     echo "ERROR in curl update of count API"
   fi
-  mongo_eval "db.sensor_details.updateOne({event_id: \"${EVENTID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\" } });"
+  mongo_eval "db.sensor_details.updateOne({job_id: \"${JOBID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\" } });"
 }
 
 updateMPSonMongo () {
@@ -39,7 +41,7 @@ updateMPSonMongo () {
   # Pattern match required, as mongo returns multiple json objects when
   # connection is slow. 
   if [[ "$UPD" != *1* ]]; then
-    echo "Event ID absent in mongoDB mps_versus_time collection"
+    echo "Event ID absent in mongoDB mps_versus_time collection; creating new entry"
     MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.insert({event_id: \"${EVENTID}\", mps_time:\"${1}\", mps_value:\"${2}\" });" --quiet`
     if [[ "$MONGOOUT" != *'"nInserted" : 1'* ]]; then
       echo "ERROR in mongoDB insert MPS"
@@ -56,6 +58,7 @@ function generate_simulation_for_player () {
   USERCOGNITOID=`echo $player_simulation_data | jq -r .user_cognito_id`
   INDEX=`echo $player_simulation_data | jq -r .index`
   EVENTID=`echo $simulation_data | jq -r .event_id`
+  JOBID=`echo $simulation_data | jq -r .job_id`
   MESHFILE=`echo $simulation_data | jq -r .simulation.mesh`
   MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
   MESHTYPE=`echo "$MESHFILEROOT" | cut -f 1 -d '_'`
