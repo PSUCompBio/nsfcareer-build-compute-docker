@@ -17,15 +17,15 @@ WORKDIR /home/ubuntu
 RUN git clone -b 'v7.1.1' --single-branch https://github.com/Kitware/VTK.git
 RUN mkdir VTK/build;cd VTK/build;cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_BUILD_TYPE=Release;make -j 16
 
-# Setup MergePolyData
-ADD https://api.github.com/repos/PSUCompBio/MergePolyData/git/refs/heads/develop version.json
-RUN git clone -b develop --single-branch https://github.com/PSUCompBio/MergePolyData.git
-RUN mkdir MergePolyData/build;cd MergePolyData/build;cmake .. -DVTK_DIR=/home/ubuntu/VTK/build;make -j 16
-
 # Setup pvpython
 RUN git clone --recursive https://gitlab.kitware.com/paraview/paraview-superbuild.git
 RUN cd paraview-superbuild;git fetch origin;git checkout v5.8.0;git submodule update 
 RUN mkdir paraviewSuperbuildBuild;cd paraviewSuperbuildBuild;cmake -DENABLE_python=ON -DBUILD_SHARED_LIBS_paraview=OFF -DBUILD_TESTING=OFF -DENABLE_nlohmannjson=OFF -DENABLE_python3=ON -DENABLE_png=ON -DUSE_SYSTEM_python3=ON -DUSE_SYSTEM_zlib=ON -DUSE_SYSTEM_png=ON -DCMAKE_BUILD_TYPE=Release ../paraview-superbuild ;make -j 16 
+
+# Setup MergePolyData
+ADD https://api.github.com/repos/PSUCompBio/MergePolyData/git/refs/heads/develop version.json
+RUN git clone -b develop --single-branch https://github.com/PSUCompBio/MergePolyData.git
+RUN mkdir MergePolyData/build;cd MergePolyData/build;cmake .. -DVTK_DIR=/home/ubuntu/VTK/build;make -j 16
 
 FROM ubuntu:18.04 AS multiviewport
 
