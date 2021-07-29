@@ -1,8 +1,11 @@
 #! /bin/bash
 
-set -xv # Enable debugging till things set sorted out
+set -xv # Enable debugging till things get sorted out
 
 MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@nsfcareer.x2f1k.mongodb.net/nsfcareer-new-app?retryWrites=true&w=majority"
+# NCORE=`nproc --all`
+NCORE=16
+OMP_NUM_THREADS=1
 
 mongo_eval () {
   QRY=`mongo "${MONGO_CONNECTION_STRING}" --eval "${1}" --quiet`
@@ -31,7 +34,7 @@ updateAPIDB () {
   if [ "$CURLSTATUS" != 1 ]; then
     echo "ERROR in curl update of count API"
   fi
-  mongo_eval "db.sensor_details.updateOne({job_id: \"${JOBID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\" } });"
+  mongo_eval "db.sensor_details.updateOne({job_id: \"${JOBID}\"}, {\$set: { simulation_status:\"${1}\", computed_time:\"${DATE_ISO}\", job_started_at:\"${2}\" } });"
 }
 
 updateMPSonMongo () {
@@ -50,6 +53,7 @@ updateMPSonMongo () {
 }
 
 function generate_simulation_for_player () {
+  DATE_START=`date -Iseconds`
   aws s3 cp $1 sensor_data
   echo "Batch Index : $AWS_BATCH_JOB_ARRAY_INDEX"
   player_simulation_data=`cat sensor_data | jq -r .[$AWS_BATCH_JOB_ARRAY_INDEX]`
@@ -77,26 +81,23 @@ function generate_simulation_for_player () {
 
   file_name=$EVENTID'_input.json'
   # Check whether player specific mesh exists
-  MESH_EXISTS=`aws --region $REGION dynamodb get-item --table-name "users" --key "{\"user_cognito_id\" : {\"S\" :\"$USERCOGNITOID\"}}" --attributes-to-get "is_selfie_inp_uploaded" --query "Item.is_selfie_inp_uploaded.BOOL"`
-  echo "MESH EXISTS IS $MESH_EXISTS"
-  nonnull_case="true"
-  if [ $MESH_EXISTS == $nonnull_case ]; then
-      # Download player mesh
-      mesh_name=`aws s3 ls $USERSBUCKET/$ACCOUNTID/profile/rbf/ | grep $MESHTYPE | sort | tail -1 | awk '{print $4}'`
-      echo "Mesh is $mesh_name"
-      echo "Fetching Mesh From : s3://$USERSBUCKET/$ACCOUNTID/profile/rbf/$mesh_name"
-      aws s3 cp s3://$USERSBUCKET/$ACCOUNTID/profile/rbf/$mesh_name /home/ubuntu/FemTechRun/$mesh_name
+  CUSTOMMESH=`echo $player_simulation_data | jq -r .custom_mesh`
+  if [ "$CUSTOMMESH" == yes ]; then
+    # If custom mesh is yes, the code expects non-null mesh time stamp
+    MESHTIMESTAMP=`echo $player_simulation_data | jq -r .mesh_timestamp`
+    echo "Custom mesh time stamp used : $MESHTIMESTAMP"
+    MESHNAME=${MESHTIMESTAMP}_${MESHTYPE}_mesh.inp
+    echo "Fetching Mesh From : s3://$USERSBUCKET/$ACCOUNTID/profile/mesh/$MESHNAME"
+    aws s3 cp s3://$USERSBUCKET/$ACCOUNTID/profile/mesh/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
 
-      # Update mesh name in simulation data
-      simulation_data=`echo $simulation_data | jq '.simulation.mesh = "'$mesh_name'"'`
-
-      # echo "Updated simulation data is $simulation_data"
-      MESHFILEROOT=`echo "$mesh_name" | cut -f 1 -d '.'`
+    # Update mesh name in json input file
+    simulation_data=`echo $simulation_data | jq '.simulation.mesh = "'$MESHNAME'"'`
+    MESHFILEROOT=`echo "$MESHNAME" | cut -f 1 -d '.'`
   else
-      MESHNAME=$MESHTYPE'_brain.inp'
-      echo "Fetching Mesh From : $DEFAULT_MESH_PATH/$MESHNAME"
-      # Fetch player specific mesh from defaults
-      aws s3 cp $DEFAULT_MESH_PATH/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
+    MESHNAME=$MESHTYPE'_brain.inp'
+    echo "Fetching Mesh From : $DEFAULT_MESH_PATH/$MESHNAME"
+    # Fetch player specific mesh from defaults
+    aws s3 cp $DEFAULT_MESH_PATH/$MESHNAME /home/ubuntu/FemTechRun/$MESHNAME
   fi
 
   # Create player data directory
@@ -106,7 +107,8 @@ function generate_simulation_for_player () {
 
   # Execute femtech
   cd /home/ubuntu/FemTechRun
-  mpirun -np 16 -mca btl_vader_single_copy_mechanism none ./ex5 /tmp/$ACCOUNTID/$file_name
+  echo "Using $NCORE cores"
+  mpirun -np $NCORE -mca btl_vader_single_copy_mechanism none ./ex5 /tmp/$ACCOUNTID/$file_name
   simulationSuccess=$?
 
   # Upload input file to S3
@@ -142,7 +144,7 @@ function generate_simulation_for_player () {
           aws s3 cp $ACCOUNTID'_'$INDEX.png s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID.png
         else
           echo "MultipleViewPorts returned ERROR code $imageSuccess"
-          updateAPIDB "image_error"
+          updateAPIDB "image_error" DATE_START
           return 1
         fi
       fi
@@ -160,7 +162,7 @@ function generate_simulation_for_player () {
           aws s3 cp 'simulation_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess_1"
-          updateAPIDB "video_error"
+          updateAPIDB "video_error" DATE_START
           return 1
         fi
       fi
@@ -176,12 +178,12 @@ function generate_simulation_for_player () {
           aws s3 cp 'mps95_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'_mps.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess"
-          updateAPIDB "video_error"
+          updateAPIDB "video_error" DATE_START
           return 1
         fi
       fi
       # Upload results details to db
-      updateAPIDB "completed"
+      updateAPIDB "completed" DATE_START
       # uploadSuccess=$?
       # return $?
       mpsTime=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.time`
@@ -193,7 +195,7 @@ function generate_simulation_for_player () {
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetLabeledImage'
   else
     echo "FemTech returned ERROR code $simulationSuccess"
-    updateAPIDB "femtech_error"
+    updateAPIDB "femtech_error" DATE_START
     return 1
   fi
 }
