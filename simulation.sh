@@ -2,7 +2,7 @@
 
 set -xv # Enable debugging till things get sorted out
 
-MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@nsfcareer.x2f1k.mongodb.net/nsfcareer-new-app?retryWrites=true&w=majority"
+MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@${MCLI_URL}?retryWrites=true&w=majority"
 # NCORE=`nproc --all`
 NCORE=16
 OMP_NUM_THREADS=1
@@ -144,7 +144,7 @@ function generate_simulation_for_player () {
           aws s3 cp $ACCOUNTID'_'$INDEX.png s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID.png
         else
           echo "MultipleViewPorts returned ERROR code $imageSuccess"
-          updateAPIDB "image_error" DATE_START
+          updateAPIDB "image_error" "${DATE_START}"
           return 1
         fi
       fi
@@ -162,7 +162,7 @@ function generate_simulation_for_player () {
           aws s3 cp 'simulation_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess_1"
-          updateAPIDB "video_error" DATE_START
+          updateAPIDB "video_error" "${DATE_START}"
           return 1
         fi
       fi
@@ -178,12 +178,12 @@ function generate_simulation_for_player () {
           aws s3 cp 'mps95_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'_mps.mp4'
         else
           echo "pvpython returned ERROR code $videoSuccess"
-          updateAPIDB "video_error" DATE_START
+          updateAPIDB "video_error" "${DATE_START}"
           return 1
         fi
       fi
       # Upload results details to db
-      updateAPIDB "completed" DATE_START
+      updateAPIDB "completed" "${DATE_START}"
       # uploadSuccess=$?
       # return $?
       mpsTime=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.time`
@@ -195,7 +195,7 @@ function generate_simulation_for_player () {
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetLabeledImage'
   else
     echo "FemTech returned ERROR code $simulationSuccess"
-    updateAPIDB "femtech_error" DATE_START
+    updateAPIDB "femtech_error" "${DATE_START}"
     return 1
   fi
 }
