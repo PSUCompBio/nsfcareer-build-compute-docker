@@ -1,6 +1,6 @@
 #! /bin/bash
 
-set -xv # Enable debugging till things get sorted out
+# set -xv # Enable debugging till things get sorted out
 
 MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@${MCLI_URL}?retryWrites=true&w=majority"
 # NCORE=`nproc --all`
