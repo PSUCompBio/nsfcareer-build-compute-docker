@@ -52,6 +52,21 @@ updateMPSonMongo () {
   fi
 }
 
+updateCodeVersiononMongo () {
+  MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.application_versions.updateOne({event_id: \"${EVENTID}\"}, {\\$set: { code_hash :\"${1}\",  code_branch :\"${2}\" } });" --quiet`
+  echo $MONGOOUT
+  UPD=`echo $MONGOOUT | jq -r .matchedCount`
+  # Pattern match required, as mongo returns multiple json objects when
+  # connection is slow. 
+  if [[ "$UPD" != *1* ]]; then
+    echo "Event ID absent in mongoDB application_version collection; creating new entry"
+    MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.application_versions.insert({event_id: \"${EVENTID}\", code_hash :\"${1}\",  code_branch :\"${2}\" });" --quiet`
+    if [[ "$MONGOOUT" != *'"nInserted" : 1'* ]]; then
+      echo "ERROR in mongoDB insert Code Version"
+    fi
+  fi
+}
+
 function generate_simulation_for_player () {
   DATE_START=`date -Iseconds`
   aws s3 cp $1 sensor_data
@@ -127,8 +142,14 @@ function generate_simulation_for_player () {
       # Add EVENTID to output.json
       cat $EVENTID'_output.json'|jq '.event_id = "'$EVENTID'"' > /tmp/$ACCOUNTID/$EVENTID'_output.json'
 
-      # Upload output file to S3
+      # Upload output files to S3
       aws s3 cp /tmp/$ACCOUNTID/$EVENTID'_output.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID'_output.json'
+
+      OutputFiles=( CSDM-3 CSDM-5 CSDM-10 CSDM-15 CSDM-30 MPS-95 )
+      for name in "${OutputFiles[@]}"
+      do
+        aws s3 cp ${name}'.json' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/${name}'.json'
+      done
 
       # Upload MPS file to S3
       if test -f MPSfile.dat; then
@@ -189,6 +210,10 @@ function generate_simulation_for_player () {
       mpsTime=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.time`
       mpsValue=`cat "${EVENTID}"_output.json | jq -r '.["principal-max-strain"]'.value`
       updateMPSonMongo "${mpsTime}" "${mpsValue}"
+      # Add code hash to a different table
+      codeHashValue=`cat "${EVENTID}"_output.json | jq -r '.["code-version"]'`
+      codeBranch=`cat "${EVENTID}"_output.json | jq -r '.["code-branch"]'`
+      updateCodeVersiononMongo "${codeHashValue}" "${codeBranch}"
       # Trigger lambda for image generation
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&ftype=getSummary'
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetSingleEvent'
