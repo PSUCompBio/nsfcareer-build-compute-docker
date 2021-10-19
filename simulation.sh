@@ -82,13 +82,15 @@ function generate_simulation_for_player () {
   MESHFILEROOT=`echo "$MESHFILE" | cut -f 1 -d '.'`
   MESHTYPE=`echo "$MESHFILEROOT" | cut -f 1 -d '_'`
 
-  WRITEPVDFLAG=`echo $simulation_data | jq -r '.simulation."write-vtu"'`
+  simulation_details=`echo $simulation_data | jq -r .simulation`
+
+  WRITEPVDFLAG=`echo $simulation_details | jq -r '."write-vtu"'`
   # Set default value if field absent
   if [ "$WRITEPVDFLAG" == null ]; then
     WRITEPVDFLAG=true
   fi
 
-  COMPUTEINJURYFLAG=`echo $simulation_data | jq -r '.simulation."compute-injury-criteria"'`
+  COMPUTEINJURYFLAG=`echo $simulation_details | jq -r '."compute-injury-criteria"'`
   # Set default value if field absent
   if [ "$COMPUTEINJURYFLAG" == null ]; then
     COMPUTEINJURYFLAG=true
@@ -120,10 +122,15 @@ function generate_simulation_for_player () {
   # Writing player data to tmp directory
   echo $simulation_data > /tmp/$ACCOUNTID/$file_name
 
+  # Choose the required executable
+  FEMTECH_EXECUTABLE=ex5
+  if [ echo $simulation_details | jq 'has("pressure")' ]; then
+    FEMTECH_EXECUTABLE=ex21
+  fi
   # Execute femtech
   cd /home/ubuntu/FemTechRun
   echo "Using $NCORE cores"
-  mpirun -np $NCORE -mca btl_vader_single_copy_mechanism none ./ex5 /tmp/$ACCOUNTID/$file_name
+  mpirun -np $NCORE -mca btl_vader_single_copy_mechanism none ./$FEMTECH_EXECUTABLE /tmp/$ACCOUNTID/$file_name
   simulationSuccess=$?
 
   # Upload input file to S3
