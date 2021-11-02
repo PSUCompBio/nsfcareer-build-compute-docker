@@ -92,11 +92,8 @@ COPY --from=femtechprod ["/home/ubuntu/FemTechRun/ex5", \
   "/home/ubuntu/FemTechRun/updateOutputJson.py", \
   "/home/ubuntu/FemTechRun/fine_cellcentres.txt", \
   "/home/ubuntu/FemTechRun/coarse_cellcentres.txt", \
-  "/home/ubuntu/FemTechRun/"]
-
-COPY --from=multiviewport ["/home/ubuntu/MultiViewPortRun/brain3.ply", \
-  "/home/ubuntu/MultiViewPortRun/Br_color3.jpg", \
-  "/home/ubuntu/MultiViewPortRun/MultipleViewPorts", \
+  "/home/ubuntu/FemTechRun/ex21", \
+  "/home/ubuntu/FemTechRun/materialsPressure.dat", \
   "/home/ubuntu/FemTechRun/"]
 
 COPY --from=multiviewport ["/home/ubuntu/Paraview/pvpython", \

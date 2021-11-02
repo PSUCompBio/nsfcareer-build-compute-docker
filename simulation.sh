@@ -38,14 +38,14 @@ updateAPIDB () {
 }
 
 updateMPSonMongo () {
-  MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.updateOne({event_id: \"${EVENTID}\"}, {\\$set: { mps_time:\"${1}\", mps_value:\"${2}\" } });" --quiet`
+  MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.updateOne({event_id: \"${EVENTID}\"}, {\\$set: { mps_time:\"${1}\", mps_core_value:\"${2}\", mps_value:\"${2}\" } });" --quiet`
   echo $MONGOOUT
   UPD=`echo $MONGOOUT | jq -r .matchedCount`
   # Pattern match required, as mongo returns multiple json objects when
   # connection is slow. 
   if [[ "$UPD" != *1* ]]; then
     echo "Event ID absent in mongoDB mps_versus_time collection; creating new entry"
-    MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.insert({event_id: \"${EVENTID}\", mps_time:\"${1}\", mps_value:\"${2}\" });" --quiet`
+    MONGOOUT=`mongo "${MONGO_CONNECTION_STRING}" --eval "db.mps_versus_time.insert({event_id: \"${EVENTID}\", mps_time:\"${1}\", mps_core_value:\"${2}\", mps_value:\"${2}\"});" --quiet`
     if [[ "$MONGOOUT" != *'"nInserted" : 1'* ]]; then
       echo "ERROR in mongoDB insert MPS"
     fi
@@ -124,8 +124,10 @@ function generate_simulation_for_player () {
 
   # Choose the required executable
   FEMTECH_EXECUTABLE=ex5
-  if [ echo $simulation_details | jq 'has("pressure")' ]; then
+  flag=`echo $simulation_details | jq 'has("pressure")'`
+  if [ "$flag" == true ]; then
     FEMTECH_EXECUTABLE=ex21
+    cp /home/ubuntu/FemTechRun/materialsPressure.dat /home/ubuntu/FemTechRun/materials.dat
   fi
   # Execute femtech
   cd /home/ubuntu/FemTechRun
@@ -163,20 +165,6 @@ function generate_simulation_for_player () {
         aws s3 cp MPSfile.dat s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/MPSfile.dat
       fi
 
-      # Execute MergepolyData if injury metrics are computed
-      if [ "$COMPUTEINJURYFLAG" = true ]; then
-        xvfb-run -a ./MultipleViewPorts brain3.ply Br_color3.jpg $EVENTID'_output.json' $ACCOUNTID'_'$INDEX.png
-        imageSuccess=$?
-        if [ $imageSuccess -eq 0 ]; then
-          # Upload file to S3
-          aws s3 cp $ACCOUNTID'_'$INDEX.png s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/$EVENTID.png
-        else
-          echo "MultipleViewPorts returned ERROR code $imageSuccess"
-          updateAPIDB "image_error" "${DATE_START}"
-          return 1
-        fi
-      fi
-
       # Generate motion movie if VTU file is written in FemTecch
       if [ "$WRITEPVDFLAG" = true ]; then
         xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$EVENTID
@@ -187,7 +175,7 @@ function generate_simulation_for_player () {
           # Generate movie with ffmpeg
           ffmpeg -y -an -r 5 -i 'updated_simulation_'$MESHFILEROOT'_'$EVENTID'.%04d.png' -vcodec libx264 -filter:v "crop=2192:1258:112:16" -profile:v baseline -level 3 -pix_fmt yuv420p 'simulation_'$EVENTID'.mp4'
           # Upload file to S3
-          aws s3 cp 'simulation_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'.mp4'
+          aws s3 cp 'simulation_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/kinematics.mp4
         else
           echo "pvpython returned ERROR code $videoSuccess_1"
           updateAPIDB "video_error" "${DATE_START}"
@@ -203,7 +191,7 @@ function generate_simulation_for_player () {
           # Generate movie with ffmpeg
           ffmpeg -y -an -r 5 -i 'injury_'$EVENTID'.%04d.png' -vcodec libx264 -profile:v baseline -level 3 -pix_fmt yuv420p 'mps95_'$EVENTID'.mp4'
           # Upload file to S3
-          aws s3 cp 'mps95_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/$EVENTID'_mps.mp4'
+          aws s3 cp 'mps95_'$EVENTID'.mp4' s3://$USERSBUCKET/$ACCOUNTID/simulation/$EVENTID/movie/mps.mp4
         else
           echo "pvpython returned ERROR code $videoSuccess"
           updateAPIDB "video_error" "${DATE_START}"
@@ -225,6 +213,7 @@ function generate_simulation_for_player () {
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&ftype=getSummary'
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetSingleEvent'
       curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetLabeledImage'
+      curl -F "account_id=$ACCOUNTID" -F "event_id=$EVENTID" -H "x-api-key=$REPORT1_API_KEY" 'https://898nemppw4.execute-api.us-east-1.amazonaws.com/dev/generate-reports'
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     updateAPIDB "femtech_error" "${DATE_START}"
