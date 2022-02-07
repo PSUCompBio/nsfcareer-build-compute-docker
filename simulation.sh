@@ -210,10 +210,10 @@ function generate_simulation_for_player () {
       codeBranch=`cat "${EVENTID}"_output.json | jq -r '.["code-branch"]'`
       updateCodeVersiononMongo "${codeHashValue}" "${codeBranch}"
       # Trigger lambda for image generation
-      curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&ftype=getSummary'
-      curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetSingleEvent'
-      curl --location --request GET 'https://cvsr9v6fz8.execute-api.us-east-1.amazonaws.com/Testlambda?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetLabeledImage'
-      curl -F "account_id=$ACCOUNTID" -F "event_id=$EVENTID" -H "x-api-key=$REPORT1_API_KEY" 'https://898nemppw4.execute-api.us-east-1.amazonaws.com/dev/generate-reports'
+      curl --location --request GET 'https://'$LAMBDA_API_ID_1'.execute-api.us-east-1.amazonaws.com/'$LAMBDA_API_NAME'?account_id='$ACCOUNTID'&ftype=getSummary'
+      curl --location --request GET 'https://'$LAMBDA_API_ID_1'.execute-api.us-east-1.amazonaws.com/'$LAMBDA_API_NAME'?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetSingleEvent'
+      curl --location --request GET 'https://'$LAMBDA_API_ID_1'.execute-api.us-east-1.amazonaws.com/'$LAMBDA_API_NAME'?account_id='$ACCOUNTID'&event_id='$EVENTID'&ftype=GetLabeledImage'
+      curl -F "account_id=$ACCOUNTID" -F "event_id=$EVENTID" -H "x-api-key=$REPORT1_API_KEY" 'https://'$LAMBDA_API_ID_2'.execute-api.us-east-1.amazonaws.com/dev/generate-reports'
   else
     echo "FemTech returned ERROR code $simulationSuccess"
     updateAPIDB "femtech_error" "${DATE_START}"
