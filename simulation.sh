@@ -3,8 +3,8 @@
 # set -xv # Enable debugging till things get sorted out
 
 MONGO_CONNECTION_STRING="mongodb+srv://${MCLI_USER}:${MCLI_PASSWD}@${MCLI_URL}?retryWrites=true&w=majority"
-# NCORE=`nproc --all`
-NCORE=16
+
+# NCORE=16
 OMP_NUM_THREADS=1
 
 mongo_eval () {
@@ -131,7 +131,18 @@ function generate_simulation_for_player () {
   fi
   # Execute femtech
   cd /home/ubuntu/FemTechRun
+
+  NCORE=$(nproc)
+  INSTANCE_TYPE=$(curl http://169.254.169.254/latest/meta-data/instance-type)
+  EXEC_SUFFIX=$(echo "$INSTANCE_TYPE" | cut -f 1 -d '.')
+  ## Check if last char is n or d if so remove the last character
+  [ "${EXEC_SUFFIX: -1}" == "n" ] && EXEC_SUFFIX=${EXEC_SUFFIX::-1}
+  [ "${EXEC_SUFFIX: -1}" == "d" ] && EXEC_SUFFIX=${EXEC_SUFFIX::-1}
+
+  FEMTECH_EXECUTABLE="${FEMTECH_EXECUTABLE}_${EXEC_SUFFIX}"
+
   echo "Using $NCORE cores"
+  echo "Using executable $FEMTECH_EXECUTABLE"
   mpirun -np $NCORE -mca btl_vader_single_copy_mechanism none ./$FEMTECH_EXECUTABLE /tmp/$ACCOUNTID/$file_name
   simulationSuccess=$?
 
