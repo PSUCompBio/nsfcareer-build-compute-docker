@@ -178,7 +178,7 @@ function generate_simulation_for_player () {
 
       # Generate motion movie if VTU file is written in FemTecch
       if [ "$WRITEPVDFLAG" = true ]; then
-        xvfb-run -a ./pvpython simulationMovie.py $MESHFILEROOT'_'$EVENTID
+        pvpython simulationMovie.py $MESHFILEROOT'_'$EVENTID
         videoSuccess_1=$?
         xvfb-run -a python3 addGraph.py /tmp/$ACCOUNTID/$file_name
         videoSuccess_2=$?
@@ -196,7 +196,7 @@ function generate_simulation_for_player () {
 
       # Generate injury mvoie if VTU file is written in FemTecch
       if [ "$WRITEPVDFLAG" = true ] && [ "$COMPUTEINJURYFLAG" = true ]; then
-        xvfb-run -a ./pvpython mps95Movie.py  /tmp/$ACCOUNTID/$file_name
+        pvpython mps95Movie.py  /tmp/$ACCOUNTID/$file_name
         videoSuccess=$?
         if [ $videoSuccess -eq 0 ]; then
           # Generate movie with ffmpeg
